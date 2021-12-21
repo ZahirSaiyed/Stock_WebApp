@@ -10,7 +10,42 @@ st.write("""
 """)
 
 #creating a navigation bar to cater to different user needs
-nav = st.sidebar.radio("Navigation", ["Individual", "Relative Returns"])
+nav = st.sidebar.radio("Navigation", ["Individual", "Relative Returns", "Import Companies"])
+
+if nav == "Import Companies":
+    file = st.file_uploader("Please upload a file with just tickers", type="xlsx")
+    invalid = ['hi']
+    if file:
+        companyDF = pd.read_excel(file)
+        st.dataframe(companyDF)
+
+        cList = companyDF['Ticker'].values.tolist()
+
+
+        start = st.date_input('Start', value = pd.to_datetime('2016-01-04'))
+        end = st.date_input('Start', value = pd.to_datetime('2020-12-31'))
+        years = 5
+
+        df = yf.download(cList,start,end)['Adj Close']
+        df = df.fillna(-1)
+
+        returns = pd.DataFrame(columns=list(df.columns), index =['Total Returns', 'Annualized Return'])
+        #returns = returns.iloc[: , 1:]
+
+        st.dataframe(df.head())
+
+        for col in returns:
+            if(df.at[0,col] != -1):
+                returns.at['Total Returns',col] = (df[col][-1] - df[col][0])/(df[col][0])
+
+        st.dataframe(returns)
+
+        for col in returns:
+            if(df.at[0,col] != -1):
+                returns.at['Annualized Return',col] = ((1+returns.at['Total Returns',col])**(1/years))-1
+
+        st.dataframe(returns)
+
 
 if nav == "Relative Returns":
 
@@ -22,7 +57,7 @@ if nav == "Relative Returns":
     start = st.date_input('Start', value = pd.to_datetime('2010-01-01'))
     end = st.date_input('End', value = pd.to_datetime('today'))
 
-    # Taken from https://www.youtube.com/watch?v=Km2KDo6tFpQ
+    # Directly taken from https://www.youtube.com/watch?v=Km2KDo6tFpQ
     def relativeret(df):
         rel = df.pct_change()
         cumret = (1+rel).cumprod() - 1
@@ -72,6 +107,4 @@ if nav == "Individual":
     st.write("## In The News")
     newsDF = pd.DataFrame(tickerData.news)
     st.table(newsDF[['title','link']])
-
-    st.write("## Sentiment Analysis")
 
