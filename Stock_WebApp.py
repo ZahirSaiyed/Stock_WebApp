@@ -4,6 +4,7 @@
 import yfinance as yf
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
 st.write("""
 # Stock Analysis App
@@ -13,8 +14,8 @@ st.write("""
 nav = st.sidebar.radio("Navigation", ["Individual", "Relative Returns", "Import Companies"])
 
 if nav == "Import Companies":
-    file = st.file_uploader("Please upload a file with just tickers", type="xlsx")
-    invalid = ['hi']
+    file = st.file_uploader("Please upload an excel file with tickers + ESG Score", type="xlsx")
+
     if file:
         companyDF = pd.read_excel(file)
         st.dataframe(companyDF)
@@ -23,28 +24,49 @@ if nav == "Import Companies":
 
 
         start = st.date_input('Start', value = pd.to_datetime('2016-01-04'))
-        end = st.date_input('Start', value = pd.to_datetime('2020-12-31'))
+        end = st.date_input('End', value = pd.to_datetime('2020-12-31'))
         years = 5
 
         df = yf.download(cList,start,end)['Adj Close']
         df = df.fillna(-1)
 
-        returns = pd.DataFrame(columns=list(df.columns), index =['Total Returns', 'Annualized Return'])
-        #returns = returns.iloc[: , 1:]
+        #creating empty DF for total returns and annualized returns
+        returns = pd.DataFrame(columns=list(df.columns), index =['totalReturn', 'annualizedReturn'])
 
         st.dataframe(df.head())
 
+        ##calculating total returns
         for col in returns:
-            if(df.at[0,col] != -1):
-                returns.at['Total Returns',col] = (df[col][-1] - df[col][0])/(df[col][0])
+            if(df[col][0] != -1):
+                returns.at['totalReturn',col] = (df[col][-1] - df[col][0])/(df[col][0])
+
+        ##calculating annualized returns
+        for col in returns:
+            if(df[col][0] != -1):
+                returns.at['annualizedReturn',col] = ((1+returns.at['totalReturn',col])**(1/years))-1
+
+        #taking transpose to make the data more readable
+        returns = returns.T
+
+        ##left joining with original data to get the ESG scores
+        returns['2020ESG_Score'] = companyDF['Score_2020'].values.tolist()
+        returns['Ticker'] = cList
 
         st.dataframe(returns)
 
-        for col in returns:
-            if(df.at[0,col] != -1):
-                returns.at['Annualized Return',col] = ((1+returns.at['Total Returns',col])**(1/years))-1
+        fig = px.scatter(returns, x='2020ESG_Score', y='annualizedReturn',
+                hover_data = ["Ticker", "2020ESG_Score", "annualizedReturn"])
 
-        st.dataframe(returns)
+        fig.update_layout(
+            title="2020 ESG Score",
+            xaxis_title="2020 ESG Score",
+            yaxis_title="Annualized Return",
+            font=dict(
+                family="Roboto",
+                size=18
+            )
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 
 if nav == "Relative Returns":
